@@ -73,8 +73,6 @@ public class GameScreen extends ScreenAdapter {
     private boolean brakePressed = false;
     private boolean steeringActive = false;
     private int     steeringPointer = -1;
-    private float   steeringStartX  = 0f;
-    private float   steeringStartAngle = 0f;
 
     // 카메라 lerp 플래그
     private boolean camInitialized = false;
@@ -129,26 +127,17 @@ public class GameScreen extends ScreenAdapter {
         Gdx.input.setInputProcessor(new InputAdapter() {
             @Override
             public boolean touchDown(int sx, int sy, int ptr, int btn) {
-                float tx = sx;
-                // 화면 왼쪽 절반 전체 = 스티어링 드래그 영역 (시각 스티어링휠 포함)
-                if (tx < Gdx.graphics.getWidth() * STEER_X_RATIO && !steeringActive) {
-                    steeringActive     = true;
-                    steeringPointer    = ptr;
-                    steeringStartX     = tx;
-                    steeringStartAngle = physics.steeringAngle;
+                if (sx < Gdx.graphics.getWidth() * STEER_X_RATIO && !steeringActive) {
+                    steeringActive  = true;
+                    steeringPointer = ptr;
+                    applyPositionalSteering(sx);
                 }
                 return true;
             }
             @Override
             public boolean touchDragged(int sx, int sy, int ptr) {
                 if (ptr == steeringPointer && steeringActive) {
-                    float deltaX = sx - steeringStartX;
-                    // 1px = 0.8도, 최대 120도
-                    float deg = steeringStartAngle
-                            * (120f / CarPhysics.MAX_STEERING)
-                            - deltaX * 0.8f;
-                    deg = MathUtils.clamp(deg, -120f, 120f);
-                    physics.steeringAngle = -(deg / 120f) * CarPhysics.MAX_STEERING;
+                    applyPositionalSteering(sx);
                 }
                 return true;
             }
@@ -168,6 +157,16 @@ public class GameScreen extends ScreenAdapter {
                 return false;
             }
         });
+    }
+
+    // 손가락 X 위치 → 조향각 변환
+    // 왼쪽 절반의 왼쪽 끝 = 최대 좌회전, 오른쪽 끝(화면 중앙) = 최대 우회전
+    private void applyPositionalSteering(float screenX) {
+        float halfW = Gdx.graphics.getWidth() * STEER_X_RATIO;
+        float norm  = MathUtils.clamp((screenX - halfW * 0.5f) / (halfW * 0.5f), -1f, 1f);
+        // norm: -1(왼쪽) ~ 0(중앙) ~ +1(오른쪽)
+        // 물리에서 양수 = 좌회전, 음수 = 우회전이므로 부호 반전
+        physics.steeringAngle = -norm * CarPhysics.MAX_STEERING;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -533,7 +532,7 @@ public class GameScreen extends ScreenAdapter {
         shapes.circle(wheelCX, wheelCY, wheelR, 32);
 
         // 조향 방향 표시 막대
-        float indicatorAngle = -physics.steeringAngle * (120f / CarPhysics.MAX_STEERING);
+        float indicatorAngle = physics.steeringAngle * (120f / CarPhysics.MAX_STEERING);
         float cos = MathUtils.cosDeg(indicatorAngle);
         float sin = MathUtils.sinDeg(indicatorAngle);
         shapes.setColor(0f, 0.9f, 1f, 1f);
