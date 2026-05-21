@@ -16,6 +16,9 @@ configurations.all {
     resolutionStrategy {
         force 'androidx.core:core:1.13.1'
         force 'androidx.core:core-ktx:1.13.1'
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
     }
 }
 
@@ -38,8 +41,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
         encoding = 'UTF-8'
     }
 
