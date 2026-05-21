@@ -159,7 +159,7 @@ public class GameScreen extends ScreenAdapter {
             public boolean touchUp(int sx, int sy, int ptr, int btn) {
                 if (ptr == steeringPointer) {
                     steeringActive = false;
-                    physics.steeringAngle = 0f;
+                    // steeringAngle 은 handleInput() 자동복귀로 서서히 0 으로
                 }
                 return true;
             }
@@ -436,15 +436,15 @@ public class GameScreen extends ScreenAdapter {
         brakePressed = Gdx.input.isKeyPressed(Input.Keys.S)
                     || Gdx.input.isKeyPressed(Input.Keys.DOWN);
 
-        if (!steeringActive) {
-            if (Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
-                physics.steeringAngle = Math.min(physics.steeringAngle + 0.03f, CarPhysics.MAX_STEERING);
-            } else if (Gdx.input.isKeyPressed(Input.Keys.D) || Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
-                physics.steeringAngle = Math.max(physics.steeringAngle - 0.03f, -CarPhysics.MAX_STEERING);
-            } else {
-                if (physics.steeringAngle > 0) physics.steeringAngle = Math.max(0f, physics.steeringAngle - 0.05f);
-                if (physics.steeringAngle < 0) physics.steeringAngle = Math.min(0f, physics.steeringAngle + 0.05f);
-            }
+        // 키보드 조향은 터치 상태와 무관하게 항상 동작
+        if (Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
+            physics.steeringAngle = Math.min(physics.steeringAngle + 0.03f, CarPhysics.MAX_STEERING);
+        } else if (Gdx.input.isKeyPressed(Input.Keys.D) || Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
+            physics.steeringAngle = Math.max(physics.steeringAngle - 0.03f, -CarPhysics.MAX_STEERING);
+        } else if (!steeringActive) {
+            // 터치 조향도 없으면 핸들 자동복귀
+            if (physics.steeringAngle > 0) physics.steeringAngle = Math.max(0f, physics.steeringAngle - 0.05f);
+            if (physics.steeringAngle < 0) physics.steeringAngle = Math.min(0f, physics.steeringAngle + 0.05f);
         }
 
         // 멀티 터치 — 오른쪽 하단 영역에서 gas/brake 버튼
