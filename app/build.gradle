@@ -2,7 +2,7 @@ plugins {
     id 'com.android.application'
 }
 
-def gdxVersion = '1.12.1'
+def gdxVersion = '1.14.1'
 
 configurations {
     natives

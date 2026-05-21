@@ -139,9 +139,9 @@ public class MenuScreen extends ScreenAdapter {
         batch.end();
 
         // 차량 버튼
-        String[] labels = { "COMPACT  — Small & Agile",
-                            "SEDAN    — Standard Balance",
-                            "TRUCK    — Large & Heavy" };
+        String[] labels = { "COMPACT  - Small & Agile",
+                            "SEDAN    - Standard Balance",
+                            "TRUCK    - Large & Heavy" };
         Color[] colors  = { VehicleType.COMPACT.color,
                             VehicleType.SEDAN.color,
                             VehicleType.TRUCK.color };
@@ -165,7 +165,7 @@ public class MenuScreen extends ScreenAdapter {
         descFont.draw(batch, subLayout, (w - subLayout.width) / 2f, h * 0.63f);
         batch.end();
 
-        String[] labels = { "EASY   — 40 sec", "MEDIUM  — 30 sec", "DIFFICULT — 25 sec" };
+        String[] labels = { "EASY   - 40 sec", "MEDIUM  - 30 sec", "DIFFICULT - 25 sec" };
         Color[]  colors = { EASY_COLOR, MED_COLOR, HARD_COLOR };
         for (int i = 0; i < 3; i++) {
             drawButton(diffBtns[i], labels[i], colors[i], pressedIndex == (10 + i));
