@@ -2,6 +2,26 @@ plugins {
     id 'com.android.application'
 }
 
+def gdxVersion = '1.14.1'
+
+configurations {
+    natives
+}
+
+// libGDX 1.14.1 이 androidx.core:1.17.0 을 transitively 끌어오는데,
+// 1.17.0 은 compileSdk 36 + AGP 8.9.1 을 요구함.
+// 현재 설정(compileSdk 34, AGP 8.2.0) 에서는 1.13.1 로 고정.
+// libGDX Android backend 는 core 1.13.1 API 범위 내 기능만 사용.
+configurations.all {
+    resolutionStrategy {
+        force 'androidx.core:core:1.13.1'
+        force 'androidx.core:core-ktx:1.13.1'
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
+    }
+}
+
 android {
     namespace 'com.example.carproject'
     compileSdk 34
@@ -23,17 +43,52 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+        encoding = 'UTF-8'
     }
-    // assets 폴더 명시적 선언
-    sourceSets {
-        main {
-            assets.srcDirs = ['src/main/assets']
+
+    // extractNativeLibs=true (manifest) 와 함께 사용: .so 를 설치 시 디스크로
+    // 압축 해제하여 dlopen 으로 로드 — 16KB ELF 정렬 요구사항 우회
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 }
 
 dependencies {
+    implementation "com.badlogicgames.gdx:gdx:$gdxVersion"
+    implementation "com.badlogicgames.gdx:gdx-backend-android:$gdxVersion"
+    natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-armeabi-v7a"
+    natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-arm64-v8a"
+    natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86"
+    natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86_64"
+
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 }
+
+// libGDX native .so 파일을 jniLibs 폴더에 자동 추출
+task copyAndroidNatives {
+    doFirst {
+        ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"].each { abi ->
+            file("src/main/jniLibs/$abi/").mkdirs()
+        }
+        configurations.natives.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+            def outputDir = null
+            switch (artifact.classifier) {
+                case "natives-armeabi-v7a": outputDir = file("src/main/jniLibs/armeabi-v7a"); break
+                case "natives-arm64-v8a":   outputDir = file("src/main/jniLibs/arm64-v8a");   break
+                case "natives-x86":         outputDir = file("src/main/jniLibs/x86");          break
+                case "natives-x86_64":      outputDir = file("src/main/jniLibs/x86_64");       break
+            }
+            if (outputDir != null) {
+                copy {
+                    from zipTree(artifact.file)
+                    into outputDir
+                    include "*.so"
+                }
+            }
+        }
+    }
+}
+
+preBuild.dependsOn(copyAndroidNatives)
