@@ -626,7 +626,7 @@ public class GameScreen extends ScreenAdapter {
         float cx = mmX + (physics.x + 50f) / mapExtent * mmSize;
         float cy = mmY + (physics.z + 50f) / mapExtent * mmSize;
         float arrowSize = mmSize * 0.07f;
-        float ang = -physics.angle; // libGDX 캔버스 Y+ = 위 방향이므로 부호 유지
+        float ang = physics.angle + MathUtils.PI;
 
         shapes.setColor(1f, 0f, 0f, 1f);
         // 삼각형 세 꼭지점
