@@ -130,11 +130,8 @@ public class GameScreen extends ScreenAdapter {
             @Override
             public boolean touchDown(int sx, int sy, int ptr, int btn) {
                 float tx = sx;
-                float ty = Gdx.graphics.getHeight() - sy;
-                // 왼쪽 상단 절반 = 스티어링 드래그 영역
-                if (tx < Gdx.graphics.getWidth() * STEER_X_RATIO
-                        && ty > Gdx.graphics.getHeight() * CTRL_Y_RATIO
-                        && !steeringActive) {
+                // 화면 왼쪽 절반 전체 = 스티어링 드래그 영역 (시각 스티어링휠 포함)
+                if (tx < Gdx.graphics.getWidth() * STEER_X_RATIO && !steeringActive) {
                     steeringActive     = true;
                     steeringPointer    = ptr;
                     steeringStartX     = tx;
@@ -457,7 +454,8 @@ public class GameScreen extends ScreenAdapter {
             if (Gdx.input.isTouched(i)) {
                 float tx = Gdx.input.getX(i);
                 float ty = sh - Gdx.input.getY(i);
-                if (tx >= sw * STEER_X_RATIO && ty < btnY) {
+                // 오른쪽 절반 전체에서 가스/브레이크 인식
+                if (tx >= sw * STEER_X_RATIO) {
                     if (tx < btnMid) brakePressed = true;
                     else             gasPressed   = true;
                 }
