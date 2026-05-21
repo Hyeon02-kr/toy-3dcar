@@ -557,10 +557,10 @@ public class GameScreen extends ScreenAdapter {
         shapes.setColor(gasPressed ? 0.1f : 0.25f, gasPressed ? 0.7f : 0.25f, 0.25f, 0.9f);
         shapes.rect(fwdX, btnY, btnW, btnH);
 
-        shapes.end();
-
-        // 미니맵 (우측 상단)
+        // 미니맵 (우측 상단) — shapes.begin() 블록 안에서 호출해야 함
         drawMinimap(sw, sh);
+
+        shapes.end();
 
         Gdx.gl.glDisable(GL20.GL_BLEND);
 

@@ -6,7 +6,7 @@
         android:allowBackup="true"
         android:label="Car Parking"
         android:hardwareAccelerated="true"
-        android:extractNativeLibs="false"
+        android:extractNativeLibs="true"
         android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
         <activity
             android:name=".MainActivity"
