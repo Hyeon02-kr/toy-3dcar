@@ -139,9 +139,9 @@ public class MenuScreen extends ScreenAdapter {
         batch.end();
 
         // 차량 버튼
-        String[] labels = { "COMPACT  — 작고 회전이 빠름",
-                            "SEDAN    — 표준 크기 및 밸런스",
-                            "TRUCK    — 크고 조작이 어려움" };
+        String[] labels = { "COMPACT  — Small & Agile",
+                            "SEDAN    — Standard Balance",
+                            "TRUCK    — Large & Heavy" };
         Color[] colors  = { VehicleType.COMPACT.color,
                             VehicleType.SEDAN.color,
                             VehicleType.TRUCK.color };

@@ -29,6 +29,15 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+        encoding = 'UTF-8'
+    }
+
+    // 16KB 페이지 사이즈 호환: .so 파일을 APK 내에서 압축 없이 저장하여
+    // 동적 링커가 메모리 매핑(mmap) 방식으로 직접 로드할 수 있게 함
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
 }
 
