@@ -604,10 +604,10 @@ public class GameScreen extends ScreenAdapter {
         shapes.setColor(0f, 0f, 0f, 0.6f);
         shapes.rect(mmX, mmY, mmSize, mmSize);
 
-        // 벽 (회색)
+        // 벽 (회색) — X 반전: rect 오른쪽 끝이 새 왼쪽 기준점
         shapes.setColor(0.65f, 0.65f, 0.65f, 0.6f);
         for (Rectangle w : walls) {
-            float rx = mmX + (w.x + 50f) / mapExtent * mmSize;
+            float rx = mmX + (-w.x - w.width + 50f) / mapExtent * mmSize;
             float ry = mmY + (w.y + 50f) / mapExtent * mmSize;
             float rw = w.width  / mapExtent * mmSize;
             float rl = w.height / mapExtent * mmSize;
@@ -616,17 +616,17 @@ public class GameScreen extends ScreenAdapter {
 
         // 주차구역 (녹색)
         shapes.setColor(0f, 1f, 0f, 0.8f);
-        float px = mmX + (cfg.parkX - cfg.parkW / 2f + 50f) / mapExtent * mmSize;
+        float px = mmX + (-cfg.parkX - cfg.parkW / 2f + 50f) / mapExtent * mmSize;
         float py = mmY + (cfg.parkZ - cfg.parkL / 2f + 50f) / mapExtent * mmSize;
         shapes.rect(px, py,
                 cfg.parkW / mapExtent * mmSize,
                 cfg.parkL / mapExtent * mmSize);
 
         // 차량 (빨간 삼각형 화살표)
-        float cx = mmX + (physics.x + 50f) / mapExtent * mmSize;
+        float cx = mmX + (-physics.x + 50f) / mapExtent * mmSize;
         float cy = mmY + (physics.z + 50f) / mapExtent * mmSize;
         float arrowSize = mmSize * 0.07f;
-        float ang = physics.angle + MathUtils.PI;
+        float ang = MathUtils.PI - physics.angle;
 
         shapes.setColor(1f, 0f, 0f, 1f);
         // 삼각형 세 꼭지점
