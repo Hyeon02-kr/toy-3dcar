@@ -74,6 +74,10 @@ public class GameScreen extends ScreenAdapter {
     private boolean steeringActive = false;
     private int     steeringPointer = -1;
 
+    // 핸들 회전 상태 (-450° ~ +450°, 900도 풀 로크)
+    private float steeringWheelDeg  = 0f;
+    private float steeringLastAngle = 0f;  // 이전 터치 각도 (radians)
+
     // 카메라 lerp 플래그
     private boolean camInitialized = false;
 
@@ -127,17 +131,24 @@ public class GameScreen extends ScreenAdapter {
         Gdx.input.setInputProcessor(new InputAdapter() {
             @Override
             public boolean touchDown(int sx, int sy, int ptr, int btn) {
-                if (sx < Gdx.graphics.getWidth() * STEER_X_RATIO && !steeringActive) {
-                    steeringActive  = true;
-                    steeringPointer = ptr;
-                    applyPositionalSteering(sx);
+                if (!steeringActive) {
+                    float sh = Gdx.graphics.getHeight();
+                    float cx = getWheelCX(), cy = getWheelCY(), r = getWheelR();
+                    float dx = sx - cx;
+                    float dy = (sh - sy) - cy;   // 스크린 Y → HUD Y
+                    // 핸들 원의 1.5배 반경 이내 터치만 인식
+                    if (dx * dx + dy * dy <= (r * 1.5f) * (r * 1.5f)) {
+                        steeringActive    = true;
+                        steeringPointer   = ptr;
+                        steeringLastAngle = (float) Math.atan2(dy, dx);
+                    }
                 }
                 return true;
             }
             @Override
             public boolean touchDragged(int sx, int sy, int ptr) {
                 if (ptr == steeringPointer && steeringActive) {
-                    applyPositionalSteering(sx);
+                    applyRotationalSteering(sx, sy);
                 }
                 return true;
             }
@@ -145,7 +156,6 @@ public class GameScreen extends ScreenAdapter {
             public boolean touchUp(int sx, int sy, int ptr, int btn) {
                 if (ptr == steeringPointer) {
                     steeringActive = false;
-                    // steeringAngle 은 handleInput() 자동복귀로 서서히 0 으로
                 }
                 return true;
             }
@@ -159,14 +169,28 @@ public class GameScreen extends ScreenAdapter {
         });
     }
 
-    // 손가락 X 위치 → 조향각 변환
-    // 왼쪽 절반의 왼쪽 끝 = 최대 좌회전, 오른쪽 끝(화면 중앙) = 최대 우회전
-    private void applyPositionalSteering(float screenX) {
-        float halfW = Gdx.graphics.getWidth() * STEER_X_RATIO;
-        float norm  = MathUtils.clamp((screenX - halfW * 0.5f) / (halfW * 0.5f), -1f, 1f);
-        // norm: -1(왼쪽) ~ 0(중앙) ~ +1(오른쪽)
-        // 물리에서 양수 = 좌회전, 음수 = 우회전이므로 부호 반전
-        physics.steeringAngle = -norm * CarPhysics.MAX_STEERING;
+    // 핸들 원의 중심·반경 (입력 처리기와 HUD 양쪽에서 공유)
+    private float getWheelCX() { return Gdx.graphics.getWidth()  * 0.23f; }
+    private float getWheelCY() { return Gdx.graphics.getHeight() * 0.16f; }
+    private float getWheelR()  { return Gdx.graphics.getHeight() * 0.10f; }
+
+    // 터치 드래그 → 핸들 회전각 누적 (atan2 델타 방식)
+    // 반시계 방향 = 좌회전, 시계 방향 = 우회전
+    private void applyRotationalSteering(int screenX, int screenY) {
+        float sh = Gdx.graphics.getHeight();
+        float dx = screenX - getWheelCX();
+        float dy = (sh - screenY) - getWheelCY();   // 스크린 Y → HUD Y
+        float newAngle = (float) Math.atan2(dy, dx);
+
+        float delta = newAngle - steeringLastAngle;
+        // atan2 불연속 구간(±π 경계) 보정
+        if (delta >  MathUtils.PI) delta -= MathUtils.PI2;
+        if (delta < -MathUtils.PI) delta += MathUtils.PI2;
+
+        steeringWheelDeg = MathUtils.clamp(
+                steeringWheelDeg + MathUtils.radiansToDegrees * delta, -450f, 450f);
+        steeringLastAngle = newAngle;
+        physics.steeringAngle = (steeringWheelDeg / 450f) * CarPhysics.MAX_STEERING;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -432,15 +456,18 @@ public class GameScreen extends ScreenAdapter {
         brakePressed = Gdx.input.isKeyPressed(Input.Keys.S)
                     || Gdx.input.isKeyPressed(Input.Keys.DOWN);
 
-        // 키보드 조향은 터치 상태와 무관하게 항상 동작
+        // 키보드 조향 (steeringWheelDeg 경유 — 시각 동기화)
         if (Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
-            physics.steeringAngle = Math.min(physics.steeringAngle + 0.03f, CarPhysics.MAX_STEERING);
+            steeringWheelDeg = MathUtils.clamp(steeringWheelDeg + 5f, -450f, 450f);
+            physics.steeringAngle = (steeringWheelDeg / 450f) * CarPhysics.MAX_STEERING;
         } else if (Gdx.input.isKeyPressed(Input.Keys.D) || Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
-            physics.steeringAngle = Math.max(physics.steeringAngle - 0.03f, -CarPhysics.MAX_STEERING);
+            steeringWheelDeg = MathUtils.clamp(steeringWheelDeg - 5f, -450f, 450f);
+            physics.steeringAngle = (steeringWheelDeg / 450f) * CarPhysics.MAX_STEERING;
         } else if (!steeringActive) {
-            // 터치 조향도 없으면 핸들 자동복귀
-            if (physics.steeringAngle > 0) physics.steeringAngle = Math.max(0f, physics.steeringAngle - 0.05f);
-            if (physics.steeringAngle < 0) physics.steeringAngle = Math.min(0f, physics.steeringAngle + 0.05f);
+            // 터치·키보드 조향 모두 없으면 핸들 중앙 자동복귀 (3°/frame)
+            if (steeringWheelDeg > 0) steeringWheelDeg = Math.max(0f, steeringWheelDeg - 3f);
+            if (steeringWheelDeg < 0) steeringWheelDeg = Math.min(0f, steeringWheelDeg + 3f);
+            physics.steeringAngle = (steeringWheelDeg / 450f) * CarPhysics.MAX_STEERING;
         }
 
         // 멀티 터치 — 오른쪽 하단 영역에서 gas/brake 버튼
@@ -524,23 +551,38 @@ public class GameScreen extends ScreenAdapter {
         shapes.setColor(0f, 0f, 0f, 0.4f);
         shapes.rect(0, 0, sw, sh * CTRL_Y_RATIO);
 
-        // 스티어링 휠 원 (왼쪽)
-        float wheelCX = sw * 0.23f;
-        float wheelCY = sh * 0.16f;
-        float wheelR  = sh * 0.1f;
-        shapes.setColor(0.3f, 0.3f, 0.3f, 0.85f);
-        shapes.circle(wheelCX, wheelCY, wheelR, 32);
+        // ── 스티어링 휠 (왼쪽 하단) ──────────────────────────────
+        float wheelCX = getWheelCX();
+        float wheelCY = getWheelCY();
+        float wheelR  = getWheelR();
 
-        // 조향 방향 표시 막대
-        float indicatorAngle = physics.steeringAngle * (120f / CarPhysics.MAX_STEERING);
-        float cos = MathUtils.cosDeg(indicatorAngle);
-        float sin = MathUtils.sinDeg(indicatorAngle);
-        shapes.setColor(0f, 0.9f, 1f, 1f);
-        shapes.rectLine(
-                wheelCX - cos * wheelR * 0.7f,
-                wheelCY - sin * wheelR * 0.7f,
-                wheelCX + cos * wheelR * 0.7f,
-                wheelCY + sin * wheelR * 0.7f, 6f);
+        // 외곽 림 (어두운 링 — 큰 원 위에 약간 작은 원을 덮어 링처럼 표현)
+        shapes.setColor(0.28f, 0.28f, 0.28f, 0.90f);
+        shapes.circle(wheelCX, wheelCY, wheelR, 48);
+        shapes.setColor(0.14f, 0.14f, 0.14f, 0.88f);
+        shapes.circle(wheelCX, wheelCY, wheelR * 0.78f, 48);
+
+        // 3개 스포크 — steeringWheelDeg 만큼 회전
+        // baseRad: 중립 시 첫 번째 스포크가 12시 방향(HALF_PI)을 향함
+        float baseRad = MathUtils.degreesToRadians * steeringWheelDeg + MathUtils.PI / 2f;
+        for (int s = 0; s < 3; s++) {
+            float a   = baseRad + s * MathUtils.PI2 / 3f;
+            float cos = MathUtils.cos(a);
+            float sin = MathUtils.sin(a);
+            // 첫 번째 스포크(12시)는 금색으로 구별 — 회전량을 직관적으로 확인 가능
+            if (s == 0) shapes.setColor(0.95f, 0.78f, 0.10f, 1f);
+            else        shapes.setColor(0.62f, 0.62f, 0.62f, 1f);
+            shapes.rectLine(
+                    wheelCX + cos * wheelR * 0.20f,
+                    wheelCY + sin * wheelR * 0.20f,
+                    wheelCX + cos * wheelR * 0.76f,
+                    wheelCY + sin * wheelR * 0.76f,
+                    5f);
+        }
+
+        // 허브 (중앙 원형 볼트)
+        shapes.setColor(0.50f, 0.50f, 0.50f, 1f);
+        shapes.circle(wheelCX, wheelCY, wheelR * 0.17f, 20);
 
         // FORWARD / BACKWARD 버튼
         float btnW  = sw * 0.2f;
