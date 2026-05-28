@@ -585,13 +585,23 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private boolean checkWinBySettings() {
-        if (GameSettings.get().winCondition == GameSettings.WinCondition.ENTER) {
-            // 차량 중심이 주차 구역 사각형 안에 진입하는 즉시 성공
-            return Math.abs(physics.x - cfg.parkX) < cfg.parkW / 2f
-                && Math.abs(physics.z - cfg.parkZ) < cfg.parkL / 2f;
+        if (!allCornersInSpot()) return false;
+        // ENTER: 4 꼭지점 전부 주차 구역 안에 들어오는 즉시 성공
+        if (GameSettings.get().winCondition == GameSettings.WinCondition.ENTER) return true;
+        // FULL_STOP: 4 꼭지점 전부 들어온 상태에서 속도 0 도달 시 성공
+        return Math.abs(physics.speed) < 0.01f;
+    }
+
+    /** 차량 4 꼭지점이 주차 구역 사각형 안에 전부 들어왔는지 확인 */
+    private boolean allCornersInSpot() {
+        float minX = cfg.parkX - cfg.parkW / 2f;
+        float maxX = cfg.parkX + cfg.parkW / 2f;
+        float minZ = cfg.parkZ - cfg.parkL / 2f;
+        float maxZ = cfg.parkZ + cfg.parkL / 2f;
+        for (float[] c : physics.getCorners(vehicle)) {
+            if (c[0] < minX || c[0] > maxX || c[1] < minZ || c[1] > maxZ) return false;
         }
-        // FULL_STOP: 기존 조건 (거리 + 정렬 + 완전멈춤)
-        return physics.checkWin(cfg.parkX, cfg.parkZ);
+        return true;
     }
 
     /** 체이스 카메라 — game.js 와 동일한 행렬 변환 */
