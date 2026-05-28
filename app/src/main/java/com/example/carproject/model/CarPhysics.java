@@ -18,7 +18,8 @@ public class CarPhysics {
         steeringAngle = 0f;
     }
 
-    public void update(VehicleType v, boolean gas, boolean brake) {
+    // gas / brake: 0.0(없음) ~ 1.0(최대) 아날로그 압력값
+    public void update(VehicleType v, float gas, float brake) {
         // Ackermann 조향 근사치: 속도가 있을 때만 회전각 적용
         float wheelbase = v.length * 0.7f;
         if (Math.abs(speed) > 0.005f) {
@@ -26,10 +27,10 @@ public class CarPhysics {
             angle += angularVelocity;
         }
 
-        if (gas) {
-            speed += v.accel;
-        } else if (brake) {
-            speed -= v.accel;
+        if (gas > 0f) {
+            speed += v.accel * gas;
+        } else if (brake > 0f) {
+            speed -= v.accel * brake;
         } else {
             speed *= 0.95f;
             if (Math.abs(speed) < 0.001f) speed = 0f;

@@ -70,8 +70,9 @@ public class GameScreen extends ScreenAdapter {
     private BitmapFont overlayFont;
 
     // ─── 컨트롤러 상태 ────────────────────────────────────────────
-    private boolean gasPressed   = false;
-    private boolean brakePressed = false;
+    // 0.0 = 입력 없음, 1.0 = 최대 압력 (TAP 모드는 항상 1.0)
+    private float gasAmount   = 0f;
+    private float brakeAmount = 0f;
     private boolean steeringActive = false;
     private int     steeringPointer = -1;
 
@@ -490,7 +491,7 @@ public class GameScreen extends ScreenAdapter {
 
     private void update(float delta) {
         handleInput();
-        physics.update(vehicle, gasPressed, brakePressed);
+        physics.update(vehicle, gasAmount, brakeAmount);
         updateCamera();
 
         // 타이머 (1초마다 감소)
@@ -511,29 +512,36 @@ public class GameScreen extends ScreenAdapter {
 
     private void handleInput() {
         GameSettings s = GameSettings.get();
-        float sh        = Gdx.graphics.getHeight();
-        float threshold = sh * 0.05f;
+        float sh       = Gdx.graphics.getHeight();
+        // 화면 높이의 30%를 슬라이드하면 최대 압력(1.0)
+        float maxSlide = sh * 0.30f;
 
         // ── 가스 ───────────────────────────────────────────────────
-        gasPressed = Gdx.input.isKeyPressed(Input.Keys.W)
-                  || Gdx.input.isKeyPressed(Input.Keys.UP);
+        gasAmount = 0f;
+        if (Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.UP))
+            gasAmount = 1.0f;
         if (gasPointer >= 0) {
+            float raw;
             switch (s.throttleMode) {
-                case TAP:        gasPressed = true; break;
-                case SLIDE_UP:   gasPressed |= (gasSlideY - gasStartY)  >  threshold; break;
-                case SLIDE_DOWN: gasPressed |= (gasStartY - gasSlideY)  >  threshold; break;
+                case SLIDE_UP:   raw = (gasSlideY - gasStartY)  / maxSlide; break;
+                case SLIDE_DOWN: raw = (gasStartY - gasSlideY)  / maxSlide; break;
+                default:         raw = 1.0f;  // TAP
             }
+            gasAmount = Math.max(gasAmount, MathUtils.clamp(raw, 0f, 1f));
         }
 
         // ── 브레이크 ───────────────────────────────────────────────
-        brakePressed = Gdx.input.isKeyPressed(Input.Keys.S)
-                    || Gdx.input.isKeyPressed(Input.Keys.DOWN);
+        brakeAmount = 0f;
+        if (Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.DOWN))
+            brakeAmount = 1.0f;
         if (brakePointer >= 0) {
+            float raw;
             switch (s.brakeMode) {
-                case TAP:        brakePressed = true; break;
-                case SLIDE_UP:   brakePressed |= (brakeSlideY - brakeStartY) >  threshold; break;
-                case SLIDE_DOWN: brakePressed |= (brakeStartY - brakeSlideY) >  threshold; break;
+                case SLIDE_UP:   raw = (brakeSlideY - brakeStartY) / maxSlide; break;
+                case SLIDE_DOWN: raw = (brakeStartY - brakeSlideY) / maxSlide; break;
+                default:         raw = 1.0f;  // TAP
             }
+            brakeAmount = Math.max(brakeAmount, MathUtils.clamp(raw, 0f, 1f));
         }
 
         // ── 스티어링 ───────────────────────────────────────────────
@@ -738,10 +746,20 @@ public class GameScreen extends ScreenAdapter {
         float fwdX  = sw * 0.72f;
         float bwdX  = sw * 0.52f;
 
-        shapes.setColor(brakePressed ? 0.7f : 0.25f, 0.25f, 0.25f, 0.9f);
+        // 브레이크 버튼 (배경 + 압력 채움 바)
+        shapes.setColor(0.15f, 0.15f, 0.15f, 0.90f);
         shapes.rect(bwdX, btnY, btnW, btnH);
-        shapes.setColor(gasPressed ? 0.1f : 0.25f, gasPressed ? 0.7f : 0.25f, 0.25f, 0.9f);
+        if (brakeAmount > 0f) {
+            shapes.setColor(0.80f, 0.15f, 0.10f, 0.92f);
+            shapes.rect(bwdX, btnY, btnW * brakeAmount, btnH);
+        }
+        // 가스 버튼 (배경 + 압력 채움 바)
+        shapes.setColor(0.15f, 0.15f, 0.15f, 0.90f);
         shapes.rect(fwdX, btnY, btnW, btnH);
+        if (gasAmount > 0f) {
+            shapes.setColor(0.10f, 0.72f, 0.15f, 0.92f);
+            shapes.rect(fwdX, btnY, btnW * gasAmount, btnH);
+        }
 
         // 미니맵 (우측 상단) — shapes.begin() 블록 안에서 호출해야 함
         drawMinimap(sw, sh);
