@@ -175,7 +175,7 @@ public class SettingsScreen extends ScreenAdapter {
         titleFont.draw(batch, tGL, (w - tGL.width) / 2f, h * 0.950f);
 
         // 섹션 라벨
-        String[] sectionLabels = { "핸들 조작", "엑셀 조작", "브레이크 조작", "주차성공 조건" };
+        String[] sectionLabels = { "Steering", "Throttle", "Brake", "Win Condition" };
         float[]  labelYs       = { h * 0.838f,  h * 0.648f,  h * 0.458f,      h * 0.278f      };
         for (int i = 0; i < 4; i++) {
             GlyphLayout gl = new GlyphLayout(labelFont, sectionLabels[i]);
@@ -183,19 +183,19 @@ public class SettingsScreen extends ScreenAdapter {
         }
 
         // 옵션 버튼 텍스트
-        String[] steeLabels = { "핸들 회전", "슬라이드", "좌우 버튼" };
-        String[] thrLabels  = { "단순 터치", "위로 스와이프", "아래로 스와이프" };
-        String[] winLabels  = { "진입 즉시", "완전 멈춤" };
+        String[] steeLabels = { "Wheel Rotate", "Slide", "L/R Buttons" };
+        String[] thrLabels  = { "Tap", "Swipe Up", "Swipe Down" };
+        String[] winLabels  = { "On Entry", "Full Stop" };
 
         drawOptTexts(0, steeLabels, steeSel);
         drawOptTexts(3, thrLabels,  thrSel);
         drawOptTexts(6, thrLabels,  brkSel);
         drawOptTexts(9, winLabels,  winSel);
 
-        // 뒤로 버튼
+        // Back button
         optFont.setColor(Color.WHITE);
-        GlyphLayout bGL = new GlyphLayout(optFont, "저장 & 돌아가기");
         Rectangle b = btns[11];
+        GlyphLayout bGL = new GlyphLayout(optFont, "Save & Back");
         optFont.draw(batch, bGL, b.x + (b.width - bGL.width) / 2f, b.y + b.height / 2f + bGL.height / 2f);
 
         batch.end();
