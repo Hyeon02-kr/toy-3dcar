@@ -566,10 +566,10 @@ public class GameScreen extends ScreenAdapter {
             switch (s.throttleMode) {
                 case SLIDE_UP:
                     raw = (gasSlideY - gasStartY) / maxSlide;
-                    raw = raw <= 0f ? 0f : 0.15f + raw * 0.85f; break;
+                    raw = raw < 0f ? 0f : 0.15f + raw * 0.85f; break;
                 case SLIDE_DOWN:
                     raw = (gasStartY - gasSlideY) / maxSlide;
-                    raw = raw <= 0f ? 0f : 0.15f + raw * 0.85f; break;
+                    raw = raw < 0f ? 0f : 0.15f + raw * 0.85f; break;
                 default:         raw = 1.0f;  // TAP
             }
             gasAmount = Math.max(gasAmount, MathUtils.clamp(raw, 0f, 1f));
@@ -584,10 +584,10 @@ public class GameScreen extends ScreenAdapter {
             switch (s.brakeMode) {
                 case SLIDE_UP:
                     raw = (brakeSlideY - brakeStartY) / maxSlide;
-                    raw = raw <= 0f ? 0f : 0.15f + raw * 0.85f; break;
+                    raw = raw < 0f ? 0f : 0.15f + raw * 0.85f; break;
                 case SLIDE_DOWN:
                     raw = (brakeStartY - brakeSlideY) / maxSlide;
-                    raw = raw <= 0f ? 0f : 0.15f + raw * 0.85f; break;
+                    raw = raw < 0f ? 0f : 0.15f + raw * 0.85f; break;
                 default:         raw = 1.0f;  // TAP
             }
             brakeAmount = Math.max(brakeAmount, MathUtils.clamp(raw, 0f, 1f));
