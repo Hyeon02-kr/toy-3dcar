@@ -89,6 +89,10 @@ public class GameScreen extends ScreenAdapter {
     private float gasSlideY    = 0f;
     private float brakeSlideY  = 0f;
 
+    // 기어 상태 (리얼리스틱 모드 전용)
+    private enum Gear { P, R, N, D }
+    private Gear currentGear = Gear.D;
+
     // 카메라 lerp 플래그
     private boolean camInitialized = false;
 
@@ -225,6 +229,19 @@ public class GameScreen extends ScreenAdapter {
                     if (tx >= pbX && tx <= pbX + pbW && hudY >= pbY && hudY <= pbY + pbH) {
                         paused = !paused;
                         if (!paused) resumeGame();
+                        return true;
+                    }
+                }
+
+                // ── 기어 선택 (리얼리스틱 모드, 게임 진행 중) ────
+                if (!paused && !gameOver &&
+                        GameSettings.get().driveMode == GameSettings.DriveMode.REALISTIC) {
+                    float gearX = sw_ * 0.52f, gearY = sh_ * 0.245f;
+                    float gearW = sw_ * 0.44f, gearH = sh_ * 0.058f;
+                    if (tx >= gearX && tx <= gearX + gearW && hudY >= gearY && hudY <= gearY + gearH) {
+                        int slot = (int)((tx - gearX) / (gearW / 4f));
+                        if      (slot == 1) currentGear = Gear.R;
+                        else if (slot == 3) currentGear = Gear.D;
                         return true;
                     }
                 }
@@ -532,7 +549,8 @@ public class GameScreen extends ScreenAdapter {
     private void update(float delta) {
         handleInput();
         boolean realistic = GameSettings.get().driveMode == GameSettings.DriveMode.REALISTIC;
-        physics.update(vehicle, gasAmount, brakeAmount, realistic);
+        boolean reverse   = realistic && currentGear == Gear.R;
+        physics.update(vehicle, gasAmount, brakeAmount, realistic, reverse);
         updateCamera();
 
         // 타이머 (1초마다 감소)
@@ -821,6 +839,23 @@ public class GameScreen extends ScreenAdapter {
             shapes.rect(fwdX, btnY, btnW * gasAmount, btnH);
         }
 
+        // 기어 셀렉터 (리얼리스틱 모드 전용)
+        if (GameSettings.get().driveMode == GameSettings.DriveMode.REALISTIC) {
+            float gearX = sw * 0.52f, gearY = sh * 0.245f;
+            float gearW = sw * 0.44f, gearH = sh * 0.058f;
+            float slotW = gearW / 4f;
+            for (int gi = 0; gi < 4; gi++) {
+                float sx = gearX + gi * slotW;
+                boolean isR = (gi == 1), isD = (gi == 3);
+                boolean active = (isR && currentGear == Gear.R) || (isD && currentGear == Gear.D);
+                if      (active && isR) shapes.setColor(0.55f, 0.10f, 0.10f, 0.95f);
+                else if (active)        shapes.setColor(0.06f, 0.28f, 0.58f, 0.95f);
+                else if (isR || isD)    shapes.setColor(0.14f, 0.14f, 0.24f, 0.90f);
+                else                    shapes.setColor(0.07f, 0.07f, 0.09f, 0.65f);
+                shapes.rect(sx + 1.5f, gearY, slotW - 3f, gearH);
+            }
+        }
+
         // 일시정지 버튼 배경 (상단 중앙)
         shapes.setColor(0.10f, 0.10f, 0.22f, 0.88f);
         shapes.rect(sw * 0.41f, sh * 0.932f, sw * 0.18f, sh * 0.052f);
@@ -855,9 +890,30 @@ public class GameScreen extends ScreenAdapter {
         GlyphLayout bwd = new GlyphLayout(hudFont, isRealistic ? "BRK" : "BWD");
         hudFont.draw(hudBatch, bwd,
                 bwdX + (btnW - bwd.width) / 2f, btnY + btnH / 2f + bwd.height / 2f);
-        GlyphLayout fwd = new GlyphLayout(hudFont, "FWD");
+        GlyphLayout fwd = new GlyphLayout(hudFont, isRealistic && currentGear == Gear.R ? "REV" : "FWD");
         hudFont.draw(hudBatch, fwd,
                 fwdX + (btnW - fwd.width) / 2f, btnY + btnH / 2f + fwd.height / 2f);
+
+        // 기어 셀렉터 텍스트 (리얼리스틱 모드 전용)
+        if (isRealistic) {
+            float gearX = sw * 0.52f, gearY = sh * 0.245f;
+            float gearW = sw * 0.44f, gearH = sh * 0.058f;
+            float slotW = gearW / 4f;
+            String[] gLabels = { "P", "R", "N", "D" };
+            hudFont.getData().setScale(1.4f);
+            for (int gi = 0; gi < 4; gi++) {
+                float sx = gearX + gi * slotW;
+                boolean isR = (gi == 1), isD = (gi == 3);
+                boolean active = (isR && currentGear == Gear.R) || (isD && currentGear == Gear.D);
+                if      (active)       hudFont.setColor(Color.WHITE);
+                else if (isR || isD)   hudFont.setColor(new Color(0.55f, 0.65f, 0.75f, 1f));
+                else                   hudFont.setColor(new Color(0.30f, 0.30f, 0.35f, 1f));
+                GlyphLayout gl = new GlyphLayout(hudFont, gLabels[gi]);
+                hudFont.draw(hudBatch, gl,
+                        sx + (slotW - gl.width) / 2f,
+                        gearY + gearH / 2f + gl.height / 2f);
+            }
+        }
         hudFont.getData().setScale(2f);
 
         // 일시정지 버튼 라벨

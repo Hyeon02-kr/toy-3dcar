@@ -19,7 +19,7 @@ public class CarPhysics {
     }
 
     // gas / brake: 0.0(없음) ~ 1.0(최대) 아날로그 압력값
-    public void update(VehicleType v, float gas, float brake, boolean realistic) {
+    public void update(VehicleType v, float gas, float brake, boolean realistic, boolean reverse) {
         // Ackermann 조향 근사치: 속도가 있을 때만 회전각 적용
         float wheelbase = v.length * 0.7f;
         if (Math.abs(speed) > 0.005f) {
@@ -28,17 +28,37 @@ public class CarPhysics {
         }
 
         if (realistic) {
-            // Realistic: high inertia, brake-only (no reverse)
-            if (gas > 0f) {
-                speed += v.accel * gas;
-            } else if (brake > 0f) {
-                speed -= v.accel * brake * 2.5f;
-                if (speed < 0f) speed = 0f;
+            if (reverse) {
+                // R 기어: 가스 = 후진 가속, 브레이크 = 후진 감속
+                if (speed > 0f) {
+                    // 전진 중 R 기어: 빠른 감속
+                    speed -= v.accel * brake * 2.5f + v.accel * 0.5f;
+                    if (speed < 0f) speed = 0f;
+                } else {
+                    if (gas > 0f) {
+                        speed -= v.accel * gas;
+                    } else if (brake > 0f) {
+                        speed += v.accel * brake * 2.5f;
+                        if (speed > 0f) speed = 0f;
+                    } else {
+                        speed *= 0.985f;
+                        if (Math.abs(speed) < 0.001f) speed = 0f;
+                    }
+                }
+                speed = MathUtils.clamp(speed, -v.maxSpeed / 2f, 0f);
             } else {
-                speed *= 0.985f;
-                if (Math.abs(speed) < 0.001f) speed = 0f;
+                // D 기어: 전진만
+                if (gas > 0f) {
+                    speed += v.accel * gas;
+                } else if (brake > 0f) {
+                    speed -= v.accel * brake * 2.5f;
+                    if (speed < 0f) speed = 0f;
+                } else {
+                    speed *= 0.985f;
+                    if (Math.abs(speed) < 0.001f) speed = 0f;
+                }
+                speed = MathUtils.clamp(speed, 0f, v.maxSpeed);
             }
-            speed = MathUtils.clamp(speed, 0f, v.maxSpeed);
         } else {
             if (gas > 0f) {
                 speed += v.accel * gas;
