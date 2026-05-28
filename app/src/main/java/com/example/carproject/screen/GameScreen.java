@@ -46,6 +46,7 @@ public class GameScreen extends ScreenAdapter {
 
     private boolean gameOver = false;
     private boolean gameWon  = false;
+    private boolean paused   = false;
     private float   timerValue;
     private float   timerElapsed = 0f;
 
@@ -141,6 +142,8 @@ public class GameScreen extends ScreenAdapter {
         Gdx.input.setInputProcessor(new InputAdapter() {
             @Override
             public boolean touchDown(int sx, int sy, int ptr, int btn) {
+                if (paused || gameOver) return true;
+
                 float sh  = Gdx.graphics.getHeight();
                 float sw  = Gdx.graphics.getWidth();
                 float tx  = sx;
@@ -185,6 +188,8 @@ public class GameScreen extends ScreenAdapter {
 
             @Override
             public boolean touchDragged(int sx, int sy, int ptr) {
+                if (paused || gameOver) return true;
+
                 float sh   = Gdx.graphics.getHeight();
                 float hudY = sh - sy;
 
@@ -208,6 +213,37 @@ public class GameScreen extends ScreenAdapter {
 
             @Override
             public boolean touchUp(int sx, int sy, int ptr, int btn) {
+                float sh_  = Gdx.graphics.getHeight();
+                float sw_  = Gdx.graphics.getWidth();
+                float tx   = sx;
+                float hudY = sh_ - sy;
+
+                // ── 일시정지 버튼 (gameOver 제외, 항상 감지) ──────
+                if (!gameOver) {
+                    float pbX = sw_ * 0.41f, pbY = sh_ * 0.932f;
+                    float pbW = sw_ * 0.18f, pbH = sh_ * 0.052f;
+                    if (tx >= pbX && tx <= pbX + pbW && hudY >= pbY && hudY <= pbY + pbH) {
+                        paused = !paused;
+                        if (!paused) resumeGame();
+                        return true;
+                    }
+                }
+
+                // ── 일시정지 오버레이 버튼 ────────────────────────
+                if (paused) {
+                    float bW = sw_ * 0.55f, bH = sh_ * 0.08f;
+                    float bX = (sw_ - bW) / 2f;
+                    if (tx >= bX && tx <= bX + bW) {
+                        if (hudY >= sh_ * 0.52f && hudY <= sh_ * 0.52f + bH) {
+                            paused = false; resumeGame();
+                        } else if (hudY >= sh_ * 0.38f && hudY <= sh_ * 0.38f + bH) {
+                            backToMenu();
+                        }
+                    }
+                    return true;
+                }
+
+                // ── 일반 터치업 ───────────────────────────────────
                 if (ptr == steeringPointer) steeringActive = false;
                 if (ptr == gasPointer)      gasPointer     = -1;
                 if (ptr == brakePointer)    brakePointer   = -1;
@@ -216,7 +252,11 @@ public class GameScreen extends ScreenAdapter {
 
             @Override
             public boolean keyDown(int keycode) {
-                if (keycode == Input.Keys.BACK) { backToMenu(); return true; }
+                if (keycode == Input.Keys.BACK) {
+                    if (!gameOver) { paused = !paused; if (!paused) resumeGame(); }
+                    else backToMenu();
+                    return true;
+                }
                 return false;
             }
         });
@@ -483,7 +523,7 @@ public class GameScreen extends ScreenAdapter {
     // ═══════════════════════════════════════════════════════════════
     @Override
     public void render(float delta) {
-        if (!gameOver) {
+        if (!gameOver && !paused) {
             update(delta);
         }
         draw();
@@ -649,6 +689,7 @@ public class GameScreen extends ScreenAdapter {
         // HUD 오버레이
         drawHUD();
 
+        if (paused)   drawPauseOverlay();
         if (gameOver) drawOverlay();
     }
 
@@ -771,6 +812,10 @@ public class GameScreen extends ScreenAdapter {
             shapes.rect(fwdX, btnY, btnW * gasAmount, btnH);
         }
 
+        // 일시정지 버튼 배경 (상단 중앙)
+        shapes.setColor(0.10f, 0.10f, 0.22f, 0.88f);
+        shapes.rect(sw * 0.41f, sh * 0.932f, sw * 0.18f, sh * 0.052f);
+
         // 미니맵 (우측 상단) — shapes.begin() 블록 안에서 호출해야 함
         drawMinimap(sw, sh);
 
@@ -803,6 +848,15 @@ public class GameScreen extends ScreenAdapter {
         GlyphLayout fwd = new GlyphLayout(hudFont, "FWD");
         hudFont.draw(hudBatch, fwd,
                 fwdX + (btnW - fwd.width) / 2f, btnY + btnH / 2f + fwd.height / 2f);
+        hudFont.getData().setScale(2f);
+
+        // 일시정지 버튼 라벨
+        hudFont.getData().setScale(1.6f);
+        hudFont.setColor(paused ? Color.YELLOW : Color.WHITE);
+        GlyphLayout pauseGL = new GlyphLayout(hudFont, paused ? ">" : "||");
+        hudFont.draw(hudBatch, pauseGL,
+                sw * 0.41f + (sw * 0.18f - pauseGL.width)  / 2f,
+                sh * 0.932f + sh * 0.052f / 2f + pauseGL.height / 2f);
         hudFont.getData().setScale(2f);
 
         hudBatch.end();
@@ -854,6 +908,55 @@ public class GameScreen extends ScreenAdapter {
         float dx = cx + MathUtils.sin(ang - 2.2f)   * arrowSize;
         float dy = cy + MathUtils.cos(ang - 2.2f)   * arrowSize;
         shapes.triangle(ax, ay, bx, by, dx, dy);
+    }
+
+    /** 일시정지 오버레이 */
+    private void drawPauseOverlay() {
+        float sw = Gdx.graphics.getWidth();
+        float sh = Gdx.graphics.getHeight();
+        float bW = sw * 0.55f, bH = sh * 0.08f;
+        float bX = (sw - bW) / 2f;
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+
+        shapes.setColor(0f, 0f, 0f, 0.68f);
+        shapes.rect(0, 0, sw, sh);
+
+        shapes.setColor(0.06f, 0.26f, 0.52f, 1f);   // RESUME 버튼 (파란색)
+        shapes.rect(bX, sh * 0.52f, bW, bH);
+
+        shapes.setColor(0.30f, 0.08f, 0.08f, 1f);   // MENU 버튼 (빨간색)
+        shapes.rect(bX, sh * 0.38f, bW, bH);
+
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        hudBatch.begin();
+
+        overlayFont.setColor(Color.YELLOW);
+        GlyphLayout title = new GlyphLayout(overlayFont, "PAUSED");
+        overlayFont.draw(hudBatch, title, (sw - title.width) / 2f, sh * 0.70f);
+
+        overlayFont.getData().setScale(2.2f);
+        overlayFont.setColor(Color.WHITE);
+        GlyphLayout resumeGL = new GlyphLayout(overlayFont, "RESUME");
+        overlayFont.draw(hudBatch, resumeGL,
+                (sw - resumeGL.width) / 2f, sh * 0.52f + bH / 2f + resumeGL.height / 2f);
+        GlyphLayout menuGL = new GlyphLayout(overlayFont, "MENU");
+        overlayFont.draw(hudBatch, menuGL,
+                (sw - menuGL.width) / 2f, sh * 0.38f + bH / 2f + menuGL.height / 2f);
+
+        overlayFont.getData().setScale(3.5f);
+        hudBatch.end();
+    }
+
+    /** 일시정지 해제 시 입력 상태 초기화 */
+    private void resumeGame() {
+        steeringActive = false;
+        gasPointer = brakePointer = -1;
+        gasAmount  = brakeAmount  = 0f;
     }
 
     /** 게임 오버 / 성공 오버레이 */
