@@ -19,7 +19,7 @@ public class CarPhysics {
     }
 
     // gas / brake: 0.0(없음) ~ 1.0(최대) 아날로그 압력값
-    public void update(VehicleType v, float gas, float brake) {
+    public void update(VehicleType v, float gas, float brake, boolean realistic) {
         // Ackermann 조향 근사치: 속도가 있을 때만 회전각 적용
         float wheelbase = v.length * 0.7f;
         if (Math.abs(speed) > 0.005f) {
@@ -27,16 +27,29 @@ public class CarPhysics {
             angle += angularVelocity;
         }
 
-        if (gas > 0f) {
-            speed += v.accel * gas;
-        } else if (brake > 0f) {
-            speed -= v.accel * brake;
+        if (realistic) {
+            // Realistic: high inertia, brake-only (no reverse)
+            if (gas > 0f) {
+                speed += v.accel * gas;
+            } else if (brake > 0f) {
+                speed -= v.accel * brake * 2.5f;
+                if (speed < 0f) speed = 0f;
+            } else {
+                speed *= 0.985f;
+                if (Math.abs(speed) < 0.001f) speed = 0f;
+            }
+            speed = MathUtils.clamp(speed, 0f, v.maxSpeed);
         } else {
-            speed *= 0.95f;
-            if (Math.abs(speed) < 0.001f) speed = 0f;
+            if (gas > 0f) {
+                speed += v.accel * gas;
+            } else if (brake > 0f) {
+                speed -= v.accel * brake;
+            } else {
+                speed *= 0.95f;
+                if (Math.abs(speed) < 0.001f) speed = 0f;
+            }
+            speed = MathUtils.clamp(speed, -v.maxSpeed / 2f, v.maxSpeed);
         }
-
-        speed = MathUtils.clamp(speed, -v.maxSpeed / 2f, v.maxSpeed);
 
         // Three.js 와 동일한 이동 공식 (-Z 가 전진)
         x -= MathUtils.sin(angle) * speed;

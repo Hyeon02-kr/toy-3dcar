@@ -26,9 +26,10 @@ public class SettingsScreen extends ScreenAdapter {
     // btn[0..2]  = 핸들 조작 (3종)
     // btn[3..5]  = 엑셀 조작 (3종)
     // btn[6..8]  = 브레이크 조작 (3종)
-    // btn[9..10] = 주차성공 조건 (2종)
-    // btn[11]    = 저장 & 돌아가기
-    private final Rectangle[] btns = new Rectangle[12];
+    // btn[9..10] = 드라이브 모드 (2종)
+    // btn[11..12]= 주차성공 조건 (2종)
+    // btn[13]    = 저장 & 돌아가기
+    private final Rectangle[] btns = new Rectangle[14];
     private int pressedIdx = -1;
 
     private static final Color COL_SEL_BG   = new Color(0.06f, 0.24f, 0.50f, 1f);
@@ -99,18 +100,21 @@ public class SettingsScreen extends ScreenAdapter {
         float bw3 = (usable - 2 * gap) / 3f;
         float bw2 = (usable - gap)     / 2f;
 
-        // 각 행의 버튼 Y (아래쪽이 기준)
-        float[] rowY = { h * 0.730f, h * 0.540f, h * 0.350f, h * 0.178f };
+        // 5 rows (spaced ~0.15h apart)
+        float[] rowY = { h * 0.750f, h * 0.600f, h * 0.450f, h * 0.300f, h * 0.155f };
 
-        for (int i = 0; i < 3; i++) btns[i]     = new Rectangle(margin + i * (bw3 + gap), rowY[0], bw3, bh);
-        for (int i = 0; i < 3; i++) btns[3 + i] = new Rectangle(margin + i * (bw3 + gap), rowY[1], bw3, bh);
-        for (int i = 0; i < 3; i++) btns[6 + i] = new Rectangle(margin + i * (bw3 + gap), rowY[2], bw3, bh);
+        for (int i = 0; i < 3; i++) btns[i]      = new Rectangle(margin + i * (bw3 + gap), rowY[0], bw3, bh);
+        for (int i = 0; i < 3; i++) btns[3 + i]  = new Rectangle(margin + i * (bw3 + gap), rowY[1], bw3, bh);
+        for (int i = 0; i < 3; i++) btns[6 + i]  = new Rectangle(margin + i * (bw3 + gap), rowY[2], bw3, bh);
 
-        btns[9]  = new Rectangle(margin,              rowY[3], bw2, bh);
-        btns[10] = new Rectangle(margin + bw2 + gap,  rowY[3], bw2, bh);
+        btns[9]  = new Rectangle(margin,             rowY[3], bw2, bh);
+        btns[10] = new Rectangle(margin + bw2 + gap, rowY[3], bw2, bh);
+
+        btns[11] = new Rectangle(margin,             rowY[4], bw2, bh);
+        btns[12] = new Rectangle(margin + bw2 + gap, rowY[4], bw2, bh);
 
         float backW = w * 0.55f;
-        btns[11] = new Rectangle((w - backW) / 2f, h * 0.040f, backW, bh);
+        btns[13] = new Rectangle((w - backW) / 2f, h * 0.040f, backW, bh);
     }
 
     @Override
@@ -121,7 +125,6 @@ public class SettingsScreen extends ScreenAdapter {
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
 
-        // 선택 상태 배열
         boolean[] steeSel = {
             cfg.steeringMode == GameSettings.SteeringMode.WHEEL,
             cfg.steeringMode == GameSettings.SteeringMode.SLIDE,
@@ -137,6 +140,10 @@ public class SettingsScreen extends ScreenAdapter {
             cfg.brakeMode == GameSettings.BrakeMode.SLIDE_UP,
             cfg.brakeMode == GameSettings.BrakeMode.SLIDE_DOWN
         };
+        boolean[] driveSel = {
+            cfg.driveMode == GameSettings.DriveMode.SIMULATION,
+            cfg.driveMode == GameSettings.DriveMode.REALISTIC
+        };
         boolean[] winSel = {
             cfg.winCondition == GameSettings.WinCondition.ENTER,
             cfg.winCondition == GameSettings.WinCondition.FULL_STOP
@@ -145,63 +152,58 @@ public class SettingsScreen extends ScreenAdapter {
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
-        // ── 버튼 배경 (전체 한 번에) ─────────────────────────────
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         drawBGs(0, 3, steeSel);
         drawBGs(3, 3, thrSel);
         drawBGs(6, 3, brkSel);
-        drawBGs(9, 2, winSel);
-        shapes.setColor(pressedIdx == 11 ? COL_PRESS_BG : COL_NORM_BG);
-        shapes.rect(btns[11].x, btns[11].y, btns[11].width, btns[11].height);
+        drawBGs(9, 2, driveSel);
+        drawBGs(11, 2, winSel);
+        shapes.setColor(pressedIdx == 13 ? COL_PRESS_BG : COL_NORM_BG);
+        shapes.rect(btns[13].x, btns[13].y, btns[13].width, btns[13].height);
         shapes.end();
 
-        // ── 버튼 테두리 (전체 한 번에) ──────────────────────────
         shapes.begin(ShapeRenderer.ShapeType.Line);
         drawBorders(0, 3, steeSel);
         drawBorders(3, 3, thrSel);
         drawBorders(6, 3, brkSel);
-        drawBorders(9, 2, winSel);
+        drawBorders(9, 2, driveSel);
+        drawBorders(11, 2, winSel);
         shapes.setColor(COL_ACCENT);
-        shapes.rect(btns[11].x, btns[11].y, btns[11].width, btns[11].height);
+        shapes.rect(btns[13].x, btns[13].y, btns[13].width, btns[13].height);
         shapes.end();
 
         Gdx.gl.glDisable(GL20.GL_BLEND);
 
-        // ── 텍스트 ────────────────────────────────────────────────
         batch.begin();
 
-        // 타이틀
         GlyphLayout tGL = new GlyphLayout(titleFont, "SETTINGS");
         titleFont.draw(batch, tGL, (w - tGL.width) / 2f, h * 0.950f);
 
-        // 섹션 라벨
-        String[] sectionLabels = { "Steering", "Throttle", "Brake", "Win Condition" };
-        float[]  labelYs       = { h * 0.838f,  h * 0.648f,  h * 0.458f,      h * 0.278f      };
-        for (int i = 0; i < 4; i++) {
+        String[] sectionLabels = { "Steering", "Throttle", "Brake", "Drive Mode", "Win Condition" };
+        float[]  labelYs       = { h * 0.852f, h * 0.702f, h * 0.552f, h * 0.402f, h * 0.257f };
+        for (int i = 0; i < 5; i++) {
             GlyphLayout gl = new GlyphLayout(labelFont, sectionLabels[i]);
             labelFont.draw(batch, gl, (w - gl.width) / 2f, labelYs[i]);
         }
 
-        // 옵션 버튼 텍스트
-        String[] steeLabels = { "Wheel Rotate", "Slide", "L/R Buttons" };
-        String[] thrLabels  = { "Tap", "Swipe Up", "Swipe Down" };
-        String[] winLabels  = { "On Entry", "Full Stop" };
+        String[] steeLabels  = { "Wheel Rotate", "Slide", "L/R Buttons" };
+        String[] thrLabels   = { "Tap", "Swipe Up", "Swipe Down" };
+        String[] driveLabels = { "Simulation", "Realistic" };
+        String[] winLabels   = { "On Entry", "Full Stop" };
 
-        drawOptTexts(0, steeLabels, steeSel);
-        drawOptTexts(3, thrLabels,  thrSel);
-        drawOptTexts(6, thrLabels,  brkSel);
-        drawOptTexts(9, winLabels,  winSel);
+        drawOptTexts(0, steeLabels,  steeSel);
+        drawOptTexts(3, thrLabels,   thrSel);
+        drawOptTexts(6, thrLabels,   brkSel);
+        drawOptTexts(9, driveLabels, driveSel);
+        drawOptTexts(11, winLabels,  winSel);
 
-        // Back button
         optFont.setColor(Color.WHITE);
-        Rectangle b = btns[11];
+        Rectangle b = btns[13];
         GlyphLayout bGL = new GlyphLayout(optFont, "Save & Back");
         optFont.draw(batch, bGL, b.x + (b.width - bGL.width) / 2f, b.y + b.height / 2f + bGL.height / 2f);
 
         batch.end();
     }
-
-    // ── 내부 렌더링 헬퍼 ────────────────────────────────────────────
 
     private void drawBGs(int offset, int count, boolean[] sel) {
         for (int i = 0; i < count; i++) {
@@ -231,8 +233,6 @@ public class SettingsScreen extends ScreenAdapter {
         }
     }
 
-    // ── 입력 처리 ────────────────────────────────────────────────────
-
     private int hitTest(float x, float y) {
         for (int i = 0; i < btns.length; i++)
             if (btns[i] != null && btns[i].contains(x, y)) return i;
@@ -241,12 +241,13 @@ public class SettingsScreen extends ScreenAdapter {
 
     private void handleTap(float x, float y) {
         int idx = hitTest(x, y);
-        if (idx < 0)  return;
+        if (idx < 0)   return;
         if      (idx < 3)  cfg.steeringMode = GameSettings.SteeringMode.values()[idx];
         else if (idx < 6)  cfg.throttleMode = GameSettings.ThrottleMode.values()[idx - 3];
         else if (idx < 9)  cfg.brakeMode    = GameSettings.BrakeMode.values()[idx - 6];
-        else if (idx < 11) cfg.winCondition = GameSettings.WinCondition.values()[idx - 9];
-        else if (idx == 11) goBack();
+        else if (idx < 11) cfg.driveMode    = GameSettings.DriveMode.values()[idx - 9];
+        else if (idx < 13) cfg.winCondition = GameSettings.WinCondition.values()[idx - 11];
+        else if (idx == 13) goBack();
     }
 
     private void goBack() {

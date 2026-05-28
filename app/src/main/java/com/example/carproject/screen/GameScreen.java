@@ -531,7 +531,8 @@ public class GameScreen extends ScreenAdapter {
 
     private void update(float delta) {
         handleInput();
-        physics.update(vehicle, gasAmount, brakeAmount);
+        boolean realistic = GameSettings.get().driveMode == GameSettings.DriveMode.REALISTIC;
+        physics.update(vehicle, gasAmount, brakeAmount, realistic);
         updateCamera();
 
         // 타이머 (1초마다 감소)
@@ -563,8 +564,12 @@ public class GameScreen extends ScreenAdapter {
         if (gasPointer >= 0) {
             float raw;
             switch (s.throttleMode) {
-                case SLIDE_UP:   raw = (gasSlideY - gasStartY)  / maxSlide; break;
-                case SLIDE_DOWN: raw = (gasStartY - gasSlideY)  / maxSlide; break;
+                case SLIDE_UP:
+                    raw = (gasSlideY - gasStartY) / maxSlide;
+                    raw = raw <= 0f ? 0f : 0.15f + raw * 0.85f; break;
+                case SLIDE_DOWN:
+                    raw = (gasStartY - gasSlideY) / maxSlide;
+                    raw = raw <= 0f ? 0f : 0.15f + raw * 0.85f; break;
                 default:         raw = 1.0f;  // TAP
             }
             gasAmount = Math.max(gasAmount, MathUtils.clamp(raw, 0f, 1f));
@@ -577,8 +582,12 @@ public class GameScreen extends ScreenAdapter {
         if (brakePointer >= 0) {
             float raw;
             switch (s.brakeMode) {
-                case SLIDE_UP:   raw = (brakeSlideY - brakeStartY) / maxSlide; break;
-                case SLIDE_DOWN: raw = (brakeStartY - brakeSlideY) / maxSlide; break;
+                case SLIDE_UP:
+                    raw = (brakeSlideY - brakeStartY) / maxSlide;
+                    raw = raw <= 0f ? 0f : 0.15f + raw * 0.85f; break;
+                case SLIDE_DOWN:
+                    raw = (brakeStartY - brakeSlideY) / maxSlide;
+                    raw = raw <= 0f ? 0f : 0.15f + raw * 0.85f; break;
                 default:         raw = 1.0f;  // TAP
             }
             brakeAmount = Math.max(brakeAmount, MathUtils.clamp(raw, 0f, 1f));
@@ -742,7 +751,7 @@ public class GameScreen extends ScreenAdapter {
             shapes.setColor(0.22f, 0.22f, 0.22f, 0.88f);
             shapes.rect(barX, barY, barW, barH);
 
-            float norm    = MathUtils.clamp(steeringWheelDeg / 450f, -1f, 1f);
+            float norm    = -(physics.steeringAngle / CarPhysics.MAX_STEERING);
             float indW    = barW * 0.10f;
             float indX    = wheelCX + norm * (barW / 2f - indW / 2f) - indW / 2f;
             shapes.setColor(0.0f, 0.78f, 1.0f, 1f);
@@ -842,7 +851,8 @@ public class GameScreen extends ScreenAdapter {
         // 버튼 라벨
         hudFont.getData().setScale(1.5f);
         hudFont.setColor(Color.WHITE);
-        GlyphLayout bwd = new GlyphLayout(hudFont, "BWD");
+        boolean isRealistic = GameSettings.get().driveMode == GameSettings.DriveMode.REALISTIC;
+        GlyphLayout bwd = new GlyphLayout(hudFont, isRealistic ? "BRK" : "BWD");
         hudFont.draw(hudBatch, bwd,
                 bwdX + (btnW - bwd.width) / 2f, btnY + btnH / 2f + bwd.height / 2f);
         GlyphLayout fwd = new GlyphLayout(hudFont, "FWD");
