@@ -32,6 +32,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.example.carproject.model.CarPhysics;
 import com.example.carproject.model.DifficultyConfig;
+import com.example.carproject.model.GameSettings;
 import com.example.carproject.model.VehicleType;
 
 public class GameScreen extends ScreenAdapter {
@@ -77,6 +78,14 @@ public class GameScreen extends ScreenAdapter {
     // 핸들 회전 상태 (-450° ~ +450°, 900도 풀 로크)
     private float steeringWheelDeg  = 0f;
     private float steeringLastAngle = 0f;  // 이전 터치 각도 (radians)
+
+    // 가스 / 브레이크 터치 추적 (슬라이드 모드용)
+    private int   gasPointer   = -1;
+    private int   brakePointer = -1;
+    private float gasStartY    = 0f;
+    private float brakeStartY  = 0f;
+    private float gasSlideY    = 0f;
+    private float brakeSlideY  = 0f;
 
     // 카메라 lerp 플래그
     private boolean camInitialized = false;
@@ -131,39 +140,82 @@ public class GameScreen extends ScreenAdapter {
         Gdx.input.setInputProcessor(new InputAdapter() {
             @Override
             public boolean touchDown(int sx, int sy, int ptr, int btn) {
-                if (!steeringActive) {
-                    float sh = Gdx.graphics.getHeight();
-                    float cx = getWheelCX(), cy = getWheelCY(), r = getWheelR();
-                    float dx = sx - cx;
-                    float dy = (sh - sy) - cy;   // 스크린 Y → HUD Y
-                    // 핸들 원의 1.5배 반경 이내 터치만 인식
-                    if (dx * dx + dy * dy <= (r * 1.5f) * (r * 1.5f)) {
-                        steeringActive    = true;
-                        steeringPointer   = ptr;
-                        steeringLastAngle = (float) Math.atan2(dy, dx);
+                float sh  = Gdx.graphics.getHeight();
+                float sw  = Gdx.graphics.getWidth();
+                float tx  = sx;
+                float hudY = sh - sy;
+
+                GameSettings s = GameSettings.get();
+
+                // ── 스티어링 ─────────────────────────────────────
+                if (!steeringActive && tx < sw * STEER_X_RATIO) {
+                    if (s.steeringMode == GameSettings.SteeringMode.WHEEL) {
+                        float cx = getWheelCX(), cy = getWheelCY(), r = getWheelR();
+                        float dx = tx - cx, dy = hudY - cy;
+                        if (dx * dx + dy * dy <= (r * 1.5f) * (r * 1.5f)) {
+                            steeringActive    = true;
+                            steeringPointer   = ptr;
+                            steeringLastAngle = (float) Math.atan2(dy, dx);
+                        }
+                    } else if (s.steeringMode == GameSettings.SteeringMode.SLIDE) {
+                        steeringActive  = true;
+                        steeringPointer = ptr;
+                        applyPositionalSteering(tx);
+                    }
+                    // BUTTONS 모드: handleInput() 폴링으로 처리
+                }
+
+                // ── 가스 / 브레이크 ───────────────────────────────
+                if (tx >= sw * STEER_X_RATIO) {
+                    if (tx < sw * 0.75f) {   // 브레이크 존
+                        if (brakePointer < 0) {
+                            brakePointer = ptr;
+                            brakeStartY = brakeSlideY = hudY;
+                        }
+                    } else {                  // 가스 존
+                        if (gasPointer < 0) {
+                            gasPointer = ptr;
+                            gasStartY = gasSlideY = hudY;
+                        }
                     }
                 }
                 return true;
             }
+
             @Override
             public boolean touchDragged(int sx, int sy, int ptr) {
+                float sh   = Gdx.graphics.getHeight();
+                float hudY = sh - sy;
+
+                GameSettings s = GameSettings.get();
+
+                // 스티어링 드래그
                 if (ptr == steeringPointer && steeringActive) {
-                    applyRotationalSteering(sx, sy);
+                    if (s.steeringMode == GameSettings.SteeringMode.WHEEL) {
+                        applyRotationalSteering(sx, sy);
+                    } else if (s.steeringMode == GameSettings.SteeringMode.SLIDE) {
+                        applyPositionalSteering(sx);
+                    }
                 }
+
+                // 가스 / 브레이크 슬라이드 Y 갱신
+                if (ptr == gasPointer)   gasSlideY   = hudY;
+                if (ptr == brakePointer) brakeSlideY = hudY;
+
                 return true;
             }
+
             @Override
             public boolean touchUp(int sx, int sy, int ptr, int btn) {
-                if (ptr == steeringPointer) {
-                    steeringActive = false;
-                }
+                if (ptr == steeringPointer) steeringActive = false;
+                if (ptr == gasPointer)      gasPointer     = -1;
+                if (ptr == brakePointer)    brakePointer   = -1;
                 return true;
             }
+
             @Override
             public boolean keyDown(int keycode) {
-                if (keycode == Input.Keys.BACK) {
-                    backToMenu(); return true;
-                }
+                if (keycode == Input.Keys.BACK) { backToMenu(); return true; }
                 return false;
             }
         });
@@ -174,7 +226,15 @@ public class GameScreen extends ScreenAdapter {
     private float getWheelCY() { return Gdx.graphics.getHeight() * 0.16f; }
     private float getWheelR()  { return Gdx.graphics.getHeight() * 0.10f; }
 
-    // 터치 드래그 → 핸들 회전각 누적 (atan2 델타 방식)
+    // SLIDE 모드: 손가락 X 위치 → 조향각 직접 대입
+    private void applyPositionalSteering(float screenX) {
+        float halfW = Gdx.graphics.getWidth() * STEER_X_RATIO;
+        float norm  = MathUtils.clamp((screenX - halfW * 0.5f) / (halfW * 0.5f), -1f, 1f);
+        steeringWheelDeg = -norm * 450f;
+        physics.steeringAngle = (steeringWheelDeg / 450f) * CarPhysics.MAX_STEERING;
+    }
+
+    // WHEEL 모드: 터치 드래그 → 핸들 회전각 누적 (atan2 델타 방식)
     // 반시계 방향 = 좌회전, 시계 방향 = 우회전
     private void applyRotationalSteering(int screenX, int screenY) {
         float sh = Gdx.graphics.getHeight();
@@ -444,49 +504,86 @@ public class GameScreen extends ScreenAdapter {
         // 충돌 / 클리어 체크
         if (physics.checkCollision(walls, vehicle)) {
             endGame(false);
-        } else if (physics.checkWin(cfg.parkX, cfg.parkZ)) {
+        } else if (checkWinBySettings()) {
             endGame(true);
         }
     }
 
     private void handleInput() {
-        // 키보드 지원 (에뮬레이터 / PC 테스트용)
-        gasPressed   = Gdx.input.isKeyPressed(Input.Keys.W)
-                    || Gdx.input.isKeyPressed(Input.Keys.UP);
+        GameSettings s = GameSettings.get();
+        float sh        = Gdx.graphics.getHeight();
+        float threshold = sh * 0.05f;
+
+        // ── 가스 ───────────────────────────────────────────────────
+        gasPressed = Gdx.input.isKeyPressed(Input.Keys.W)
+                  || Gdx.input.isKeyPressed(Input.Keys.UP);
+        if (gasPointer >= 0) {
+            switch (s.throttleMode) {
+                case TAP:        gasPressed = true; break;
+                case SLIDE_UP:   gasPressed |= (gasSlideY - gasStartY)  >  threshold; break;
+                case SLIDE_DOWN: gasPressed |= (gasStartY - gasSlideY)  >  threshold; break;
+            }
+        }
+
+        // ── 브레이크 ───────────────────────────────────────────────
         brakePressed = Gdx.input.isKeyPressed(Input.Keys.S)
                     || Gdx.input.isKeyPressed(Input.Keys.DOWN);
+        if (brakePointer >= 0) {
+            switch (s.brakeMode) {
+                case TAP:        brakePressed = true; break;
+                case SLIDE_UP:   brakePressed |= (brakeSlideY - brakeStartY) >  threshold; break;
+                case SLIDE_DOWN: brakePressed |= (brakeStartY - brakeSlideY) >  threshold; break;
+            }
+        }
 
-        // 키보드 조향 (steeringWheelDeg 경유 — 시각 동기화)
+        // ── 스티어링 ───────────────────────────────────────────────
         if (Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
             steeringWheelDeg = MathUtils.clamp(steeringWheelDeg + 5f, -450f, 450f);
             physics.steeringAngle = (steeringWheelDeg / 450f) * CarPhysics.MAX_STEERING;
+
         } else if (Gdx.input.isKeyPressed(Input.Keys.D) || Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
             steeringWheelDeg = MathUtils.clamp(steeringWheelDeg - 5f, -450f, 450f);
             physics.steeringAngle = (steeringWheelDeg / 450f) * CarPhysics.MAX_STEERING;
+
+        } else if (s.steeringMode == GameSettings.SteeringMode.BUTTONS) {
+            // 좌우 버튼 모드: 폴링으로 각 버튼 영역 감지
+            float sw    = Gdx.graphics.getWidth();
+            float splitX = sw * STEER_X_RATIO / 2f;
+            boolean leftDown = false, rightDown = false;
+            for (int i = 0; i < 5; i++) {
+                if (Gdx.input.isTouched(i)) {
+                    float tx = Gdx.input.getX(i);
+                    float ty = sh - Gdx.input.getY(i);
+                    if (ty < sh * CTRL_Y_RATIO && tx < sw * STEER_X_RATIO) {
+                        if (tx < splitX) leftDown  = true;
+                        else             rightDown = true;
+                    }
+                }
+            }
+            if      (leftDown)  steeringWheelDeg = MathUtils.clamp(steeringWheelDeg + 5f, -450f, 450f);
+            else if (rightDown) steeringWheelDeg = MathUtils.clamp(steeringWheelDeg - 5f, -450f, 450f);
+            else {
+                if (steeringWheelDeg > 0) steeringWheelDeg = Math.max(0f, steeringWheelDeg - 3f);
+                if (steeringWheelDeg < 0) steeringWheelDeg = Math.min(0f, steeringWheelDeg + 3f);
+            }
+            physics.steeringAngle = (steeringWheelDeg / 450f) * CarPhysics.MAX_STEERING;
+
         } else if (!steeringActive) {
-            // 터치·키보드 조향 모두 없으면 핸들 중앙 자동복귀 (3°/frame)
+            // WHEEL / SLIDE 모드: 손 뗀 후 자동복귀 (3°/frame)
             if (steeringWheelDeg > 0) steeringWheelDeg = Math.max(0f, steeringWheelDeg - 3f);
             if (steeringWheelDeg < 0) steeringWheelDeg = Math.min(0f, steeringWheelDeg + 3f);
             physics.steeringAngle = (steeringWheelDeg / 450f) * CarPhysics.MAX_STEERING;
         }
+    }
 
-        // 멀티 터치 — 오른쪽 하단 영역에서 gas/brake 버튼
-        float sw = Gdx.graphics.getWidth();
-        float sh = Gdx.graphics.getHeight();
-        float btnY  = sh * CTRL_Y_RATIO;
-        float btnMid = sw * 0.75f;
-
-        for (int i = 0; i < 5; i++) {
-            if (Gdx.input.isTouched(i)) {
-                float tx = Gdx.input.getX(i);
-                float ty = sh - Gdx.input.getY(i);
-                // 오른쪽 절반 전체에서 가스/브레이크 인식
-                if (tx >= sw * STEER_X_RATIO) {
-                    if (tx < btnMid) brakePressed = true;
-                    else             gasPressed   = true;
-                }
-            }
+    private boolean checkWinBySettings() {
+        if (GameSettings.get().winCondition == GameSettings.WinCondition.ENTER) {
+            // 차량 중심이 주차 구역 사각형 안에 진입하는 즉시 성공
+            return Math.abs(physics.x - cfg.parkX) < cfg.parkW / 2f
+                && Math.abs(physics.z - cfg.parkZ) < cfg.parkL / 2f;
         }
+        // FULL_STOP: 기존 조건 (거리 + 정렬 + 완전멈춤)
+        return physics.checkWin(cfg.parkX, cfg.parkZ);
     }
 
     /** 체이스 카메라 — game.js 와 동일한 행렬 변환 */
@@ -551,38 +648,88 @@ public class GameScreen extends ScreenAdapter {
         shapes.setColor(0f, 0f, 0f, 0.4f);
         shapes.rect(0, 0, sw, sh * CTRL_Y_RATIO);
 
-        // ── 스티어링 휠 (왼쪽 하단) ──────────────────────────────
+        // ── 스티어링 HUD (모드별 분기) ───────────────────────────
         float wheelCX = getWheelCX();
         float wheelCY = getWheelCY();
         float wheelR  = getWheelR();
 
-        // 외곽 림 (어두운 링 — 큰 원 위에 약간 작은 원을 덮어 링처럼 표현)
-        shapes.setColor(0.28f, 0.28f, 0.28f, 0.90f);
-        shapes.circle(wheelCX, wheelCY, wheelR, 48);
-        shapes.setColor(0.14f, 0.14f, 0.14f, 0.88f);
-        shapes.circle(wheelCX, wheelCY, wheelR * 0.78f, 48);
+        GameSettings gs = GameSettings.get();
+        if (gs.steeringMode == GameSettings.SteeringMode.WHEEL) {
+            // 3-스포크 핸들 회전 시각화
+            shapes.setColor(0.28f, 0.28f, 0.28f, 0.90f);
+            shapes.circle(wheelCX, wheelCY, wheelR, 48);
+            shapes.setColor(0.14f, 0.14f, 0.14f, 0.88f);
+            shapes.circle(wheelCX, wheelCY, wheelR * 0.78f, 48);
 
-        // 3개 스포크 — steeringWheelDeg 만큼 회전
-        // baseRad: 중립 시 첫 번째 스포크가 12시 방향(HALF_PI)을 향함
-        float baseRad = MathUtils.degreesToRadians * steeringWheelDeg + MathUtils.PI / 2f;
-        for (int s = 0; s < 3; s++) {
-            float a   = baseRad + s * MathUtils.PI2 / 3f;
-            float cos = MathUtils.cos(a);
-            float sin = MathUtils.sin(a);
-            // 첫 번째 스포크(12시)는 금색으로 구별 — 회전량을 직관적으로 확인 가능
-            if (s == 0) shapes.setColor(0.95f, 0.78f, 0.10f, 1f);
-            else        shapes.setColor(0.62f, 0.62f, 0.62f, 1f);
-            shapes.rectLine(
-                    wheelCX + cos * wheelR * 0.20f,
-                    wheelCY + sin * wheelR * 0.20f,
-                    wheelCX + cos * wheelR * 0.76f,
-                    wheelCY + sin * wheelR * 0.76f,
-                    5f);
+            float baseRad = MathUtils.degreesToRadians * steeringWheelDeg + MathUtils.PI / 2f;
+            for (int s = 0; s < 3; s++) {
+                float a   = baseRad + s * MathUtils.PI2 / 3f;
+                float cos = MathUtils.cos(a), sin = MathUtils.sin(a);
+                if (s == 0) shapes.setColor(0.95f, 0.78f, 0.10f, 1f);
+                else        shapes.setColor(0.62f, 0.62f, 0.62f, 1f);
+                shapes.rectLine(
+                        wheelCX + cos * wheelR * 0.20f, wheelCY + sin * wheelR * 0.20f,
+                        wheelCX + cos * wheelR * 0.76f, wheelCY + sin * wheelR * 0.76f, 5f);
+            }
+            shapes.setColor(0.50f, 0.50f, 0.50f, 1f);
+            shapes.circle(wheelCX, wheelCY, wheelR * 0.17f, 20);
+
+        } else if (gs.steeringMode == GameSettings.SteeringMode.SLIDE) {
+            // 슬라이더 바 시각화
+            float barW = wheelR * 1.8f;
+            float barH = wheelR * 0.22f;
+            float barX = wheelCX - barW / 2f;
+            float barY = wheelCY - barH / 2f;
+            shapes.setColor(0.22f, 0.22f, 0.22f, 0.88f);
+            shapes.rect(barX, barY, barW, barH);
+
+            float norm    = MathUtils.clamp(steeringWheelDeg / 450f, -1f, 1f);
+            float indW    = barW * 0.10f;
+            float indX    = wheelCX + norm * (barW / 2f - indW / 2f) - indW / 2f;
+            shapes.setColor(0.0f, 0.78f, 1.0f, 1f);
+            shapes.rect(indX, barY - barH * 0.3f, indW, barH * 1.6f);
+
+            // 중앙 눈금
+            shapes.setColor(0.5f, 0.5f, 0.5f, 0.7f);
+            shapes.rectLine(wheelCX, barY, wheelCX, barY + barH, 2f);
+
+        } else {
+            // BUTTONS 모드: 좌/우 버튼 시각화
+            float bW  = sw * STEER_X_RATIO * 0.44f;
+            float bH  = sh * CTRL_Y_RATIO  * 0.52f;
+            float bY  = sh * CTRL_Y_RATIO  * 0.24f;
+            float lX  = sw * 0.015f;
+            float rX  = sw * STEER_X_RATIO / 2f + sw * 0.015f;
+
+            // 폴링으로 눌림 상태 확인
+            boolean leftDown = false, rightDown = false;
+            float splitX = sw * STEER_X_RATIO / 2f;
+            for (int i = 0; i < 5; i++) {
+                if (Gdx.input.isTouched(i)) {
+                    float tx = Gdx.input.getX(i);
+                    float ty = sh - Gdx.input.getY(i);
+                    if (ty < sh * CTRL_Y_RATIO && tx < sw * STEER_X_RATIO) {
+                        if (tx < splitX) leftDown  = true;
+                        else             rightDown = true;
+                    }
+                }
+            }
+
+            shapes.setColor(leftDown  ? 0.18f : 0.10f, leftDown  ? 0.18f : 0.10f,
+                            leftDown  ? 0.45f : 0.28f, 0.92f);
+            shapes.rect(lX, bY, bW, bH);
+            shapes.setColor(rightDown ? 0.18f : 0.10f, rightDown ? 0.18f : 0.10f,
+                            rightDown ? 0.45f : 0.28f, 0.92f);
+            shapes.rect(rX, bY, bW, bH);
+
+            // 화살표 삼각형
+            float ar = bH * 0.28f;
+            float lCX = lX + bW / 2f, lCY = bY + bH / 2f;
+            float rCX = rX + bW / 2f, rCY = lCY;
+            shapes.setColor(Color.WHITE);
+            shapes.triangle(lCX - ar, lCY, lCX + ar, lCY + ar * 0.7f, lCX + ar, lCY - ar * 0.7f);
+            shapes.triangle(rCX + ar, rCY, rCX - ar, rCY + ar * 0.7f, rCX - ar, rCY - ar * 0.7f);
         }
-
-        // 허브 (중앙 원형 볼트)
-        shapes.setColor(0.50f, 0.50f, 0.50f, 1f);
-        shapes.circle(wheelCX, wheelCY, wheelR * 0.17f, 20);
 
         // FORWARD / BACKWARD 버튼
         float btnW  = sw * 0.2f;

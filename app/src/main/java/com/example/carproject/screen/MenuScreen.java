@@ -30,6 +30,7 @@ public class MenuScreen extends ScreenAdapter {
     private Rectangle[] vehicleBtns = new Rectangle[3];
     private Rectangle[] diffBtns    = new Rectangle[3];
     private Rectangle backBtn;
+    private Rectangle settingsBtn;
 
     private static final Color BTN_BG     = new Color(0.12f, 0.12f, 0.22f, 1f);
     private static final Color BTN_BORDER  = new Color(0f, 0.8f, 1f, 1f);
@@ -113,6 +114,10 @@ public class MenuScreen extends ScreenAdapter {
 
         // 뒤로가기 버튼
         backBtn = new Rectangle(cx, startY - 3 * gap, bw * 0.5f, bh * 0.85f);
+
+        // 설정 버튼 (차량 선택 화면 하단)
+        float sbW = bw * 0.45f;
+        settingsBtn = new Rectangle(cx + bw - sbW, startY - 3 * gap, sbW, bh * 0.85f);
     }
 
     @Override
@@ -149,6 +154,9 @@ public class MenuScreen extends ScreenAdapter {
         for (int i = 0; i < 3; i++) {
             drawButton(vehicleBtns[i], labels[i], colors[i], pressedIndex == i);
         }
+
+        // 설정 버튼
+        drawButton(settingsBtn, "SETTINGS", BTN_BORDER, pressedIndex == 30);
     }
 
     // ─── 난이도 선택 화면 ────────────────────────────────────────────
@@ -207,6 +215,7 @@ public class MenuScreen extends ScreenAdapter {
     private int hitTest(float x, float y) {
         if (state == State.VEHICLE) {
             for (int i = 0; i < 3; i++) if (vehicleBtns[i].contains(x, y)) return i;
+            if (settingsBtn.contains(x, y)) return 30;
         } else {
             for (int i = 0; i < 3; i++) if (diffBtns[i].contains(x, y)) return 10 + i;
             if (backBtn.contains(x, y)) return 20;
@@ -223,6 +232,11 @@ public class MenuScreen extends ScreenAdapter {
                     state = State.DIFFICULTY;
                     return;
                 }
+            }
+            if (settingsBtn.contains(x, y)) {
+                game.setScreen(new SettingsScreen(game));
+                dispose();
+                return;
             }
         } else {
             String[] diffs = { "EASY", "MEDIUM", "DIFFICULT" };
